@@ -2,10 +2,11 @@ import pprint
 import random
 
 class Patient:
-    def __init__(self, priority, minute):
+    def __init__(self, priority, treatment_time):
         assert 0 <= priority <= 5
         self.priority = priority
-        self.arrived = minute
+        self.treatment_time = treatment_time
+        self.arrived = None
         self.seen = None
         self.finished = None
     def __repr__(self):
@@ -21,30 +22,43 @@ def patients_in_minute(minute):
     if random.randint(0, 1) == 0:
         return []
     else:
-        return [Patient(random.randint(0, 5), minute)]
+        priority = random.randint(0, 5)
+        treatment_time = random.normalvariate(20, 10)
+        patient = Patient(priority, treatment_time)
+        patient.arrived = minute
+        return [patient]
 
 def did_patient_finish_with_doctor(minute, patient):
-    return minute - patient.seen == 10
+    return minute - patient.seen >= patient.treatment_time
+
+def sim_minute(minute, patients, finished_patients, doctors):
+    patients.extend(patients_in_minute(minute))
+    patients.sort(key=lambda p: p.priority)
+
+    for doctor in doctors:
+        if doctor.patient is None and len(patients):
+            doctor.patient = patients.pop()
+            doctor.patient.seen = minute
+        if doctor.patient is None:
+            continue
+        patient = doctor.patient
+        if did_patient_finish_with_doctor(minute, patient):
+            patient.finished = minute
+            finished_patients.append(patient)
+            doctor.patient = None
 
 def go():
     patients = []
     finished_patients = []
-    doctors = [Doctor(), Doctor()]
-    for minute in range(60):
-        patients.extend(patients_in_minute(minute))
-        patients.sort(key=lambda p: p.priority)
+    doctors = [Doctor() for i in range(7)]
 
-        for doctor in doctors:
-            if doctor.patient is None and len(patients):
-                doctor.patient = patients.pop()
-                doctor.patient.seen = minute
-            if doctor.patient is None:
-                continue
-            patient = doctor.patient
-            if did_patient_finish_with_doctor(minute, patient):
-                patient.finished = minute
-                finished_patients.append(patient)
-                doctor.patient = None
+    # Warmup
+    for minute in range(200):
+        sim_minute(minute, patients, finished_patients, doctors)
+    finished_patients = []
+
+    for minute in range(201, 250):
+        sim_minute(minute, patients, finished_patients, doctors)
 
     pprint.pprint(finished_patients)
 
