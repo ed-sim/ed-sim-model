@@ -17,7 +17,11 @@ relhourattends = [
     0.054084381,0.044939408,0.037514961,0.029679084,
 ]
 
-NUM_DOCTORS = 12
+DOCTOR_ROTA = [
+    ((0*60, 8*60-1), 4),
+    ((8*60, 16*60-1), 7),
+    ((16*60, 24*60-1), 6),
+]
 NUM_BLOODS = 2
 NUM_XRAYS = 1
 BLOOD_PROB = 0.2
@@ -74,12 +78,38 @@ class Patient(PY3__cmp__):
     def finished_with_xray(self, minute):
         return minute - self.started_xray == self.xray_duration
 
+class DoctorSlots:
+    def __init__(self, slot_details):
+        self.xx = []
+        for (min_start, min_end), num_slots in slot_details:
+            assert min_start < 24*60 and min_end < 24*60
+            self.xx.append(((min_start, min_end), Slots(num_slots)))
+    def have_free(self, minute):
+        day_minute = minute % (24*60)
+        for (min_start, min_end), slots in self.xx:
+            if min_start <= day_minute <= min_end:
+                return slots.have_free(minute)
+        assert False
+    def assign_patient(self, minute, patient):
+        day_minute = minute % (24*60)
+        for (min_start, min_end), slots in self.xx:
+            if min_start <= day_minute <= min_end:
+                return slots.assign_patient(minute, patient)
+        assert False
+    def done_patients(self, fn, minute):
+        done_patients = []
+        for _, slots in self.xx:
+            done_patients.extend(slots.done_patients(fn, minute))
+        return done_patients
+
 class Slots:
     def __init__(self, total_num):
         self.__total_num = total_num
         self.current_patients = []
-    def have_free(self):
+    def have_free(self, minute):
         return len(self.current_patients) < self.__total_num
+    def assign_patient(self, minute, patient):
+        self.current_patients.append(patient)
     def done_patients(self, fn, minute):
         new_current_patients = []
         done_patients = []
@@ -128,24 +158,24 @@ def sim_minute(minute, doctor_queue, blood_queue, xray_queue, finished_patients,
     doctor_queue.extend(patients_in_minute(minute))
     doctor_queue.sort()
 
-    while doctor_slots.have_free() and len(doctor_queue):
+    while doctor_slots.have_free(minute) and len(doctor_queue):
         patient = doctor_queue.pop()
         patient.started_doctor = minute
-        doctor_slots.current_patients.append(patient)
+        doctor_slots.assign_patient(minute, patient)
     for patient in doctor_slots.done_patients(Patient.finished_with_doctor, minute):
         transition_patient(patient, doctor_queue, blood_queue, xray_queue, finished_patients)
 
-    while blood_slots.have_free() and len(blood_queue):
+    while blood_slots.have_free(minute) and len(blood_queue):
         patient = blood_queue.pop()
         patient.started_blood = minute
-        blood_slots.current_patients.append(patient)
+        blood_slots.assign_patient(minute, patient)
     for patient in blood_slots.done_patients(Patient.finished_with_blood, minute):
         transition_patient(patient, doctor_queue, blood_queue, xray_queue, finished_patients)
 
-    while xray_slots.have_free() and len(xray_queue):
+    while xray_slots.have_free(minute) and len(xray_queue):
         patient = xray_queue.pop()
         patient.started_xray = minute
-        xray_slots.current_patients.append(patient)
+        xray_slots.assign_patient(minute, patient)
     for patient in xray_slots.done_patients(Patient.finished_with_xray, minute):
         transition_patient(patient, doctor_queue, xray_queue, xray_queue, finished_patients)
 
@@ -154,7 +184,7 @@ def go():
     blood_queue = []
     xray_queue = []
     finished_patients = []
-    doctor_slots = Slots(NUM_DOCTORS)
+    doctor_slots = DoctorSlots(DOCTOR_ROTA)
     blood_slots = Slots(NUM_BLOODS)
     xray_slots = Slots(NUM_XRAYS)
 
