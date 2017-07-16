@@ -80,6 +80,16 @@ class Slots:
         self.current_patients = []
     def have_free(self):
         return len(self.current_patients) < self.__total_num
+    def done_patients(self, fn, minute):
+        new_current_patients = []
+        done_patients = []
+        for patient in self.current_patients:
+            if fn(patient, minute):
+                done_patients.append(patient)
+            else:
+                new_current_patients.append(patient)
+        self.current_patients = new_current_patients
+        return done_patients
 
 PATIENT_ARRIVALS = []
 for day in range(7):
@@ -122,37 +132,22 @@ def sim_minute(minute, doctor_queue, blood_queue, xray_queue, finished_patients,
         patient = doctor_queue.pop()
         patient.started_doctor = minute
         doctor_slots.current_patients.append(patient)
-    new_current_patients = []
-    for patient in doctor_slots.current_patients:
-        if patient.finished_with_doctor(minute):
-            transition_patient(patient, doctor_queue, blood_queue, xray_queue, finished_patients)
-        else:
-            new_current_patients.append(patient)
-    doctor_slots.current_patients = new_current_patients
+    for patient in doctor_slots.done_patients(Patient.finished_with_doctor, minute):
+        transition_patient(patient, doctor_queue, blood_queue, xray_queue, finished_patients)
 
     while blood_slots.have_free() and len(blood_queue):
         patient = blood_queue.pop()
         patient.started_blood = minute
         blood_slots.current_patients.append(patient)
-    new_current_patients = []
-    for patient in blood_slots.current_patients:
-        if patient.finished_with_blood(minute):
-            transition_patient(patient, doctor_queue, blood_queue, xray_queue, finished_patients)
-        else:
-            new_current_patients.append(patient)
-    blood_slots.current_patients = new_current_patients
+    for patient in blood_slots.done_patients(Patient.finished_with_blood, minute):
+        transition_patient(patient, doctor_queue, blood_queue, xray_queue, finished_patients)
 
     while xray_slots.have_free() and len(xray_queue):
         patient = xray_queue.pop()
         patient.started_xray = minute
         xray_slots.current_patients.append(patient)
-    new_current_patients = []
-    for patient in xray_slots.current_patients:
-        if patient.finished_with_xray(minute):
-            transition_patient(patient, doctor_queue, xray_queue, xray_queue, finished_patients)
-        else:
-            new_current_patients.append(patient)
-    xray_slots.current_patients = new_current_patients
+    for patient in xray_slots.done_patients(Patient.finished_with_xray, minute):
+        transition_patient(patient, doctor_queue, xray_queue, xray_queue, finished_patients)
 
 def go():
     doctor_queue = []
