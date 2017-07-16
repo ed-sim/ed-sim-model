@@ -127,13 +127,14 @@ class Slots:
         return done_patients
 
 PATIENT_ARRIVALS = []
-for day in range(7):
-    for hour in range(24):
-        numarrivals = int(weekarrivals * reldayattends[day] * relhourattends[hour])
-        for _ in range(numarrivals):
-            arrivaltime = round((24*60*day) + (60*hour) + (random.uniform(0, 1)*59))
-            PATIENT_ARRIVALS.append(arrivaltime)
-PATIENT_ARRIVALS.sort(reverse=True)
+def gen_patient_arrivals():
+    for day in range(7):
+        for hour in range(24):
+            numarrivals = int(weekarrivals * reldayattends[day] * relhourattends[hour])
+            for _ in range(numarrivals):
+                arrivaltime = round((24*60*day) + (60*hour) + (random.uniform(0, 1)*59))
+                PATIENT_ARRIVALS.append(arrivaltime)
+    PATIENT_ARRIVALS.sort(reverse=True)
 
 def patients_in_minute(minute):
     patients = []
@@ -150,13 +151,16 @@ def patients_in_minute(minute):
         patients.append(patient)
     return patients
 
-def transition_patient(patient, doctor_queue, blood_queue, xray_queue, finished_patients):
+def transition_patient(minute, patient, doctor_queue, blood_queue, xray_queue, finished_patients):
     assert patient.doctor_duration is not None and patient.started_doctor is not None
     if patient.blood_duration and not patient.started_blood:
         blood_queue.append(patient)
+        blood_queue.sort()
     elif patient.xray_duration and not patient.started_xray:
         xray_queue.append(patient)
+        xray_queue.sort()
     else:
+        patient.finished = minute
         finished_patients.append(patient)
 
 def sim_minute(minute, doctor_queue, blood_queue, xray_queue, finished_patients, doctor_slots, blood_slots, xray_slots):
@@ -168,21 +172,21 @@ def sim_minute(minute, doctor_queue, blood_queue, xray_queue, finished_patients,
         patient.started_doctor = minute
         doctor_slots.assign_patient(minute, patient)
     for patient in doctor_slots.done_patients(Patient.finished_with_doctor, minute):
-        transition_patient(patient, doctor_queue, blood_queue, xray_queue, finished_patients)
+        transition_patient(minute, patient, doctor_queue, blood_queue, xray_queue, finished_patients)
 
     while blood_slots.have_free(minute) and len(blood_queue):
         patient = blood_queue.pop()
         patient.started_blood = minute
         blood_slots.assign_patient(minute, patient)
     for patient in blood_slots.done_patients(Patient.finished_with_blood, minute):
-        transition_patient(patient, doctor_queue, blood_queue, xray_queue, finished_patients)
+        transition_patient(minute, patient, doctor_queue, blood_queue, xray_queue, finished_patients)
 
     while xray_slots.have_free(minute) and len(xray_queue):
         patient = xray_queue.pop()
         patient.started_xray = minute
         xray_slots.assign_patient(minute, patient)
     for patient in xray_slots.done_patients(Patient.finished_with_xray, minute):
-        transition_patient(patient, doctor_queue, xray_queue, xray_queue, finished_patients)
+        transition_patient(minute, patient, doctor_queue, xray_queue, xray_queue, finished_patients)
 
 def readabletime(minute):
     assert minute % 60 == 0
@@ -193,6 +197,7 @@ def readabletime(minute):
     return '{} {}00'.format(dayname, str(dayhour).zfill(2))
 
 def go():
+    gen_patient_arrivals()
     doctor_queue = []
     blood_queue = []
     xray_queue = []
