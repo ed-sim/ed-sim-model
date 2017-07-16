@@ -216,12 +216,71 @@ def go():
         sim_minute(minute, doctor_queue, blood_queue, xray_queue, finished_patients, doctor_slots, blood_slots, xray_slots)
 
     print('Saw {} patients'.format(len(finished_patients)))
+    num_under_four_hours = 0
+    num_over_four_hours = 0
+    for patient in finished_patients:
+        minutes = patient.finished - patient.arrived
+        if minutes < 4*60:
+            num_under_four_hours += 1
+        else:
+            num_over_four_hours += 1
+    return (num_under_four_hours, num_over_four_hours)
+
+def srv():
+    import socket
+
+    def dosim(data):
+        num_rota1, num_rota2, num_rota3 = data.split(',')
+        DOCTOR_ROTA[0] = (DOCTOR_ROTA[0][0], int(num_rota1))
+        DOCTOR_ROTA[1] = (DOCTOR_ROTA[1][0], int(num_rota2))
+        DOCTOR_ROTA[2] = (DOCTOR_ROTA[2][0], int(num_rota3))
+        print(DOCTOR_ROTA)
+        num_under_four_hours, num_over_four_hours = go()
+        return '{},{}'.format(num_under_four_hours, num_over_four_hours)
+
+    class Server:
+        def __init__(self, host="127.0.0.1", port=8080):
+            self.Sock = socket.socket()
+            self.Sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.Host = host
+            self.Port = port
+            self.Sock.bind((self.Host, self.Port))
+
+        def goLive(self, handshake, reaction):
+            self.Sock.listen(10)
+            while True:
+                incomingConn, addr = self.Sock.accept()  # Establish connection with client.
+                handshake(incomingConn, addr) # Code to run on connection
+                data = incomingConn.recv(1080)
+                print(type(data), data)
+                if data != b'':
+                    reaction(incomingConn, addr, data)  # code to run when a message comes in
+
+
+    def handshake(incomingConn, addr):
+        print('Got connection from', addr)
+        incomingConn.send('Thank you for connecting'.encode())
+
+    def reaction(incomingConn, addr, data):
+        print("data.decode", data.decode('utf-8'))
+        returnMessage = dosim(data.decode('utf-8'))
+        incomingConn.send(returnMessage.encode('utf-8'))
+        incomingConn.close()
+
+    server = Server(host='0.0.0.0')
+    server.goLive(
+       handshake,
+       reaction
+    )
 
 if __name__ == '__main__':
-    try:
-        go()
-    except:
-        import pdb, traceback
-        type, value, tb = sys.exc_info()
-        traceback.print_exc()
-        pdb.post_mortem(tb)
+    if len(sys.argv) == 2 and sys.argv[1] == 'srv':
+        srv()
+    else:
+        try:
+            go()
+        except:
+            import pdb, traceback
+            type, value, tb = sys.exc_info()
+            traceback.print_exc()
+            pdb.post_mortem(tb)
