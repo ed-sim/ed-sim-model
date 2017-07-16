@@ -1,7 +1,12 @@
+#!/usr/bin/env python3
+
 from __future__ import print_function
 import heapq
 import pprint
 import random
+import sys
+
+assert sys.version_info[0] >= 3
 
 weekarrivals = 5000
 reldayattends = [
@@ -18,12 +23,12 @@ relhourattends = [
 ]
 
 DOCTOR_ROTA = [
-    ((0*60, 8*60-1), 4),
-    ((8*60, 16*60-1), 7),
+    ((0*60, 8*60-1), 11),
+    ((8*60, 16*60-1), 15),
     ((16*60, 24*60-1), 6),
 ]
 NUM_BLOODS = 2
-NUM_XRAYS = 1
+NUM_XRAYS = 2
 BLOOD_PROB = 0.2
 XRAY_PROB = 0.1
 
@@ -179,6 +184,14 @@ def sim_minute(minute, doctor_queue, blood_queue, xray_queue, finished_patients,
     for patient in xray_slots.done_patients(Patient.finished_with_xray, minute):
         transition_patient(patient, doctor_queue, xray_queue, xray_queue, finished_patients)
 
+def readabletime(minute):
+    assert minute % 60 == 0
+    daynum = minute // (24*60)
+    dayname = ['Mon', 'Tues', 'Wed', 'Thurs', 'Fri', 'Sat', 'Sun'][daynum]
+    dayminute = minute % (24*60)
+    dayhour = dayminute // 60
+    return '{} {}00'.format(dayname, str(dayhour).zfill(2))
+
 def go():
     doctor_queue = []
     blood_queue = []
@@ -191,8 +204,9 @@ def go():
     # TODO: add warmup - queue isn't empty at beginning of day
     for minute in range(0, 7*24*60):
         if minute % 60 == 0:
-            print('At minute {}, DQ:{}, BQ:{}, XQ:{}, FIN:{}'.format(
-                minute, len(doctor_queue), len(blood_queue), len(xray_queue), len(finished_patients)
+            print('At {}, DQ:{}, BQ:{}, XQ:{}, FIN:{}'.format(
+                readabletime(minute),
+                len(doctor_queue), len(blood_queue), len(xray_queue), len(finished_patients)
             ))
         sim_minute(minute, doctor_queue, blood_queue, xray_queue, finished_patients, doctor_slots, blood_slots, xray_slots)
 
@@ -202,7 +216,7 @@ if __name__ == '__main__':
     try:
         go()
     except:
-        import pdb, sys, traceback
+        import pdb, traceback
         type, value, tb = sys.exc_info()
         traceback.print_exc()
         pdb.post_mortem(tb)
